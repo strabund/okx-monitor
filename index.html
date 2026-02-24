@@ -70,11 +70,11 @@
     
     <div class="token-selector">
         <select id="tokenSelect">
+            <option value="SOL" selected>SOL</option>
             <option value="OKSOL">OKSOL</option>
             <option value="BETH">BETH</option>
             <option value="BTC">BTC</option>
             <option value="ETH">ETH</option>
-            <option value="SOL">SOL</option>
         </select>
     </div>
 
@@ -207,15 +207,16 @@
         function updateDisplay(data, token) {
             if (!data) return;
 
-            // Extract values
-            const platformLimit = data.platformFastRedemptionLimit || '--';
-            const userQuota = data.fastRedemptionLimit || '--';
-            const dailyLimit = data.dailyFastRedemptionLimit || '--';
-            const available = data.fastRedemptionAbleAmount || '--';
+            // Extract values - new API format
+            const platformLimit = data.fastRedemptionDailyLimit || data.platformFastRedemptionLimit || '--';
+            const available = data.fastRedemptionAvail || data.platformFastRedemptionAvail || '--';
+            // User quota not available in this API - show N/A
+            const userQuota = '--';
+            const dailyLimit = '--';
 
             document.getElementById('platformLimit').textContent = platformLimit + ' ' + token;
-            document.getElementById('userQuota').textContent = userQuota + ' ' + token;
-            document.getElementById('dailyLimit').textContent = dailyLimit + ' ' + token;
+            document.getElementById('userQuota').textContent = userQuota;
+            document.getElementById('dailyLimit').textContent = dailyLimit;
             document.getElementById('available').textContent = available + ' ' + token;
             
             // Color coding
