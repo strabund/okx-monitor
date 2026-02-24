@@ -180,14 +180,19 @@
 
         async function fetchData(token) {
             const currencyId = tokenIds[token] || 880;
-            const url = `/v3/defi-staking/earn/lst/holding-summary?currencyId=${currencyId}&savingType=5001&t=${Date.now()}`;
+            // Use local proxy for Vercel deployment
+            const url = `/api/proxy?token=${token}`;
             
             try {
                 const response = await fetch(url);
                 const data = await response.json();
                 
-                if (data.code !== '0') {
-                    throw new Error(data.msg || 'API Error');
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                if (data.code !== '0' && data.code !== 0) {
+                    throw new Error(data.msg || 'API Error: ' + JSON.stringify(data));
                 }
                 
                 hideError();
