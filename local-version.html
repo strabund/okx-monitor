@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OKX On-Chain Earn Monitor (Local Version)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #fff;
+        }
+        h1 { text-align: center; }
+        .token-selector {
+            text-align: center;
+            margin: 20px 0;
+        }
+        select {
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 8px;
+            background: #16213e;
+            color: #fff;
+            border: 1px solid #0f3460;
+        }
+        .data-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .data-card {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .data-card h3 { margin: 0 0 10px 0; color: #888; }
+        .data-card .value { font-size: 24px; font-weight: bold; color: #00d4ff; }
+        .data-card .value.warning { color: #ff6b6b; }
+        .data-card .value.success { color: #51cf66; }
+        .chart-container {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 20px 0;
+        }
+        .last-update {
+            text-align: center;
+            color: #666;
+            margin-top: 20px;
+        }
+        .error {
+            background: #ff6b6b;
+            color: #fff;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            margin: 10px 0;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 OKX On-Chain Earn Platform Limits</h1>
+    
+    <div class="token-selector">
+        <select id="tokenSelect">
+            <option value="SOL" selected>SOL</option>
+            <option value="OKSOL">OKSOL</option>
+            <option value="BETH">BETH</option>
+            <option value="BTC">BTC</option>
+            <option value="ETH">ETH</option>
+        </select>
+    </div>
+
+    <div class="error" id="error"></div>
+
+    <div class="data-grid">
+        <div class="data-card">
+            <h3>Platform Limit</h3>
+            <div class="value" id="platformLimit">--</div>
+        </div>
+        <div class="data-card">
+            <h3>Your Quota</h3>
+            <div class="value" id="userQuota">--</div>
+        </div>
+        <div class="data-card">
+            <h3>Daily Limit</h3>
+            <div class="value" id="dailyLimit">--</div>
+        </div>
+        <div class="data-card">
+            <h3>Available</h3>
+            <div class="value" id="available">--</div>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="historyChart"></canvas>
+    </div>
+
+    <div class="last-update">
+        Last updated: <span id="lastUpdate">--</span>
+    </div>
+
+    <script>
+        // Token currency IDs mapping
+        const tokenIds = {
+            'OKSOL': 880,
+            'BETH': 250
+        };
+
+        // Data storage for charts
+        const historyData = {
+            labels: [],
+            platformLimit: [],
+            userQuota: [],
+            available: []
+        };
+
+        // Chart initialization
+        let chart = null;
+        
+        function initChart() {
+            const ctx = document.getElementById('historyChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: historyData.labels,
+                    datasets: [
+                        {
+                            label: 'Platform Limit',
+                            data: historyData.platformLimit,
+                            borderColor: '#00d4ff',
+                            backgroundColor: 'rgba(0, 212, 255, 0.1)',
+                            fill: true
+                        },
+                        {
+                            label: 'Your Quota',
+                            data: historyData.userQuota,
+                            borderColor: '#51cf66',
+                            backgroundColor: 'rgba(81, 207, 102, 0.1)',
+                            fill: true
+                        },
+                        {
+                            label: 'Available',
+                            data: historyData.available,
+                            borderColor: '#ff6b6b',
+                            backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { labels: { color: '#fff' } }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#888' } },
+                        y: { ticks: { color: '#888' } }
+                    }
+                }
+            });
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('error');
+            el.textContent = msg;
+            el.style.display = 'block';
+        }
+
+        function hideError() {
+            document.getElementById('error').style.display = 'none';
+        }
+
+        async function fetchData(token) {
+            const tokenIds = {
+                'OKSOL': 880,
+                'BETH': 250,
+                'SOL': 9,
+                'ETH': 2,
+                'BTC': 1
+            };
+            
+            const currencyId = tokenIds[token] || 880;
+            // Direct OKX API - requires user to be logged in
+            const url = `https://www.okx.com/v3/defi-staking/earn/lst/holding-summary?currencyId=${currencyId}&savingType=5001&t=${Date.now()}`;
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.code !== '0' && data.code !== 0) {
+                    throw new Error(data.msg || 'API Error: ' + JSON.stringify(data));
+                }
+                
+                hideError();
+                return data.data[0];
+            } catch (e) {
+                console.error('Fetch error:', e);
+                showError('Error: ' + e.message + ' - Make sure you are logged into OKX');
+                return null;
+            }
+        }
+
+        function updateDisplay(data, token) {
+            if (!data) return;
+
+            // Extract values from the v3 API
+            const platformLimit = data.platformFastRedemptionLimit || data.fastRedemptionDailyLimit || '--';
+            const userQuota = data.fastRedemptionLimit || '--';
+            const dailyLimit = data.dailyFastRedemptionLimit || '--';
+            const available = data.fastRedemptionAbleAmount || data.fastRedemptionAvail || '--';
+
+            document.getElementById('platformLimit').textContent = platformLimit + ' ' + token;
+            document.getElementById('userQuota').textContent = userQuota + ' ' + token;
+            document.getElementById('dailyLimit').textContent = dailyLimit + ' ' + token;
+            document.getElementById('available').textContent = available + ' ' + token;
+            
+            // Color coding
+            const availEl = document.getElementById('available');
+            if (available !== '--') {
+                if (parseFloat(available) > 0) {
+                    availEl.className = 'value success';
+                } else {
+                    availEl.className = 'value warning';
+                }
+            }
+
+            // Update chart data
+            const now = new Date().toLocaleTimeString();
+            if (historyData.labels.length > 60) {
+                historyData.labels.shift();
+                historyData.platformLimit.shift();
+                historyData.userQuota.shift();
+                historyData.available.shift();
+            }
+            
+            historyData.labels.push(now);
+            historyData.platformLimit.push(platformLimit !== '--' ? parseFloat(platformLimit) : null);
+            historyData.userQuota.push(userQuota !== '--' ? parseFloat(userQuota) : null);
+            historyData.available.push(available !== '--' ? parseFloat(available) : null);
+            
+            chart.update();
+
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleString();
+        }
+
+        async function checkData() {
+            const token = document.getElementById('tokenSelect').value;
+            const data = await fetchData(token);
+            updateDisplay(data, token);
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            initChart();
+            checkData();
+            setInterval(checkData, 60000); // Every minute
+        });
+
+        // Handle token change
+        document.getElementById('tokenSelect').addEventListener('change', () => {
+            // Reset data when changing token
+            historyData.labels = [];
+            historyData.platformLimit = [];
+            historyData.userQuota = [];
+            historyData.available = [];
+            checkData();
+        });
+    </script>
+</body>
+</html>
