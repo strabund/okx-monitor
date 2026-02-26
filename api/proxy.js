@@ -1,9 +1,9 @@
 // Vercel API proxy for OKX - with API key authentication
 import crypto from 'crypto';
 
-const API_KEY = '558acda2-33c7-4808-ad58-53a68b9701d2';
-const SECRET = 'D248DBEFD03D9FC98DA56B233658E9E9';
-const PASSPHRASE = 'QwRBHpHYCyHGK90$#v';
+const API_KEY = process.env.OKX_API_KEY || '';
+const SECRET = process.env.OKX_SECRET || '';
+const PASSPHRASE = process.env.OKX_PASSPHRASE || '';
 
 function generateSignature(timestamp, method, path, body = '') {
     const message = timestamp + method + path + body;
@@ -14,6 +14,10 @@ function generateSignature(timestamp, method, path, body = '') {
 
 export default async function handler(req, res) {
     const { token = 'SOL' } = req.query;
+    
+    if (!API_KEY || !SECRET || !PASSPHRASE) {
+        return res.status(500).json({ error: 'API credentials not configured' });
+    }
     
     // Token mapping - lowercase for API
     const tokenMap = {
