@@ -17,12 +17,12 @@ export default async function handler(req, res) {
     
     const API_KEY = process.env.OKX_API_KEY;
     const SECRET = process.env.OKX_SECRET;
-    const PASSPHRASE = process.env.OKX_PASSPHRASE;
+    let PASSPHRASE = process.env.OKX_PASSPHRASE;
     
-    // Debug: log which vars are set (but not the values)
-    console.log('API_KEY set:', !!API_KEY);
-    console.log('SECRET set:', !!SECRET);
-    console.log('PASSPHRASE set:', !!PASSPHRASE);
+    // URL decode passphrase if needed (Vercel may encode special chars)
+    try {
+        PASSPHRASE = decodeURIComponent(PASSPHRASE);
+    } catch (e) {}
     
     if (!API_KEY || !SECRET || !PASSPHRASE) {
         return res.status(500).json({ 
