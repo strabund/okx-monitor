@@ -1,11 +1,11 @@
 // Vercel API proxy for OKX - with API key authentication
 import crypto from 'crypto';
 
-const API_KEY = process.env.OKX_API_KEY || '';
-const SECRET = process.env.OKX_SECRET || '';
-const PASSPHRASE = process.env.OKX_PASSPHRASE || '';
-
 function generateSignature(timestamp, method, path, body = '') {
+    const SECRET = process.env.OKX_SECRET;
+    if (!SECRET) {
+        throw new Error('OKX_SECRET not configured');
+    }
     const message = timestamp + method + path + body;
     const hmac = crypto.createHmac('sha256', SECRET);
     hmac.update(message);
@@ -15,8 +15,22 @@ function generateSignature(timestamp, method, path, body = '') {
 export default async function handler(req, res) {
     const { token = 'SOL' } = req.query;
     
+    const API_KEY = process.env.OKX_API_KEY;
+    const SECRET = process.env.OKX_SECRET;
+    const PASSPHRASE = process.env.OKX_PASSPHRASE;
+    
+    // Debug: log which vars are set (but not the values)
+    console.log('API_KEY set:', !!API_KEY);
+    console.log('SECRET set:', !!SECRET);
+    console.log('PASSPHRASE set:', !!PASSPHRASE);
+    
     if (!API_KEY || !SECRET || !PASSPHRASE) {
-        return res.status(500).json({ error: 'API credentials not configured' });
+        return res.status(500).json({ 
+            error: 'API credentials not configured',
+            hasApiKey: !!API_KEY,
+            hasSecret: !!SECRET,
+            hasPassphrase: !!PASSPHRASE
+        });
     }
     
     // Token mapping - lowercase for API
@@ -52,8 +66,7 @@ export default async function handler(req, res) {
         res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
         
         if (response.ok && data.code === '0') {
-            // Transform the data to include token name
-            const result = {
+            return res.status(200).json({
                 code: '0',
                 data: [{
                     ...data.data,
@@ -61,8 +74,7 @@ export default async function handler(req, res) {
                     platformFastRedemptionLimit: data.data.fastRedemptionDailyLimit,
                     platformFastRedemptionAvail: data.data.fastRedemptionAvail
                 }]
-            };
-            return res.status(200).json(result);
+            });
         } else {
             return res.status(200).json(data);
         }
